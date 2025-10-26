@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# liboqs speedup comparison: reference vs AVX2 acceleration
+
+echo "===== liboqs Speedup Comparison ====="
+
+# Algorithms to test
+KEM_ALGS=(Kyber512 Kyber768 Kyber1024 NTRU-HRSS-701 FrodoKEM-1344-AES)
+
+# Initialize results array
+RESULTS=()
+
+for alg in "${KEM_ALGS[@]}"; do
+    echo "---------------------------------------------"
+    echo "Testing KEM: $alg"
+
+    # Reference build (no acceleration)
+    export OQS_ENABLE_KEM_AVX2=0
+    start=$(date +%s.%N)
+    ./tests/test_kem $alg >/dev/null 2>&1
+    end=$(date +%s.%N)
+    ref_time=$(echo "$end - $start" | bc)
+
+    # Accelerated build
+    export OQS_ENABLE_KEM_AVX2=1
+    start=$(date +%s.%N)
+    ./tests/test_kem $alg >/dev/null 2>&1
+    end=$(date +%s.%N)
+    acc_time=$(echo "$end - $start" | bc)
+
+    # Calculate speedup
+    speedup=$(echo "scale=2; $ref_time / $acc_time" | bc)
+
+    RESULTS+=("$alg|$ref_time|$acc_time|$speedup")
+done
+
+# Print summary table
+echo
+echo "===== Performance Comparison Table ====="
+printf "| %-15s | %-10s | %-12s | %-8s |\n" "Algorithm" "RefTime(s)" "AccTime(s)" "Speedupx"
+echo "--------------------------------------------------------------"
+for r in "${RESULTS[@]}"; do
+    IFS='|' read -r alg ref acc sp <<< "$r"
+    printf "| %-15s | %-10.4f | %-12.4f | %-8s |\n" "$alg" "$ref" "$acc" "$sp"
+done
+
+echo "===== Comparison Completed ====="
